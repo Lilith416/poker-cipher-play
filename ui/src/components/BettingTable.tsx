@@ -170,7 +170,6 @@ const BettingTable = () => {
 
   const [createForm, setCreateForm] = useState(defaultCreateForm);
   const [joinForms, setJoinForms] = useState<Record<string, JoinState>>({});
-  const [debugRevealForms, setDebugRevealForms] = useState<Record<string, string>>({});
 
   const totalGamesQuery = useQuery({
     queryKey: ["totalGames", resolvedChainId, contractAddress],
@@ -350,25 +349,33 @@ const BettingTable = () => {
         value: rewardWei,
       });
 
-      // Store the salt for later reveal (in a real app, this would be stored securely)
-      console.log("Store this salt securely for game reveal:", salt);
-      // Note: In a real app, we should use a secure backend to store this data
-      // For demo purposes, we'll store it temporarily in localStorage
-      const tempStorageKey = `temp_game_data_${Date.now()}`;
-      const gameData = {
-        secretNumber,
-        salt,
-        creator: address!,
-        createdAt: Date.now()
-      };
-      localStorage.setItem(tempStorageKey, JSON.stringify(gameData));
+      // Note: Game data will be stored after transaction confirmation with gameId
 
       toast({
         title: "Creating encrypted match…",
         description: "Waiting for confirmation on-chain.",
       });
 
-      await publicClient.waitForTransactionReceipt({ hash: txHash });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
+
+      // Get the new game ID from totalGames
+      const totalGames = await publicClient.readContract({
+        address: contractAddress,
+        abi: ENCRYPTED_HIGH_LOW_ABI,
+        functionName: "totalGames",
+      });
+      const newGameId = totalGames - 1n;
+
+      // Store game data with gameId for later reveal
+      const gameData = {
+        gameId: newGameId.toString(),
+        secretNumber,
+        salt,
+        creator: address!,
+        createdAt: Date.now()
+      };
+      localStorage.setItem(`game_data_${newGameId}`, JSON.stringify(gameData));
+      console.log(`Stored game data for game ${newGameId}:`, gameData);
 
       toast({
         title: "Match created",
@@ -482,15 +489,42 @@ const BettingTable = () => {
   };
 
   const handleFairReveal = async (gameId: bigint, secretNumber: number, salt: `0x${string}`) => {
+    // Ensure salt is in correct format (bytes32 = 66 chars including 0x)
+    let formattedSalt: `0x${string}` = salt;
+    if (!salt.startsWith('0x')) {
+      formattedSalt = `0x${salt}` as `0x${string}`;
+    }
+    // Ensure salt is exactly 32 bytes (66 chars)
+    if (formattedSalt.length !== 66) {
+      const saltBytes = ethers.getBytes(formattedSalt);
+      const padded = new Uint8Array(32);
+      padded.set(saltBytes.slice(0, 32));
+      formattedSalt = ethers.hexlify(padded) as `0x${string}`;
+    }
+
     try {
       ensureSigner();
 
-      console.log("Fair reveal - gameId:", gameId, "secretNumber:", secretNumber, "salt:", salt);
+      console.log("Fair reveal - gameId:", gameId, "secretNumber:", secretNumber, "salt:", formattedSalt);
 
       // For debugging: let's compute the hash that should match
       const ethers = await import('ethers');
-      const computedHash = ethers.keccak256(ethers.solidityPacked(["uint8", "bytes32"], [secretNumber, salt]));
+      const computedHash = ethers.keccak256(ethers.solidityPacked(["uint8", "bytes32"], [secretNumber, formattedSalt]));
       console.log("Computed hash for verification:", computedHash);
+
+      // Try to get the stored hash from the contract for comparison
+      try {
+        const gameSummary = await publicClient.readContract({
+          address: contractAddress,
+          abi: ENCRYPTED_HIGH_LOW_ABI,
+          functionName: "getGame",
+          args: [gameId],
+        });
+        console.log("Game summary:", gameSummary);
+        // Note: secretNumberHash is not in GameSummary, but we can check other fields
+      } catch (e) {
+        console.warn("Could not fetch game summary:", e);
+      }
 
       const txHash = await walletClient!.writeContract({
         account: walletClient!.account.address,
@@ -498,30 +532,74 @@ const BettingTable = () => {
         address: contractAddress,
         abi: ENCRYPTED_HIGH_LOW_ABI,
         functionName: "fairReveal",
-        args: [gameId, secretNumber, salt],
+        args: [gameId, secretNumber, formattedSalt],
       });
 
       toast({ title: "Fair reveal executed", description: `Game settled with committed secret number ${secretNumber}.` });
       await publicClient.waitForTransactionReceipt({ hash: txHash });
       refetchGames();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Fair reveal failed:", error);
 
-      // Try to provide more helpful error messages
-      let errorMessage = (error as Error).message;
-      if (errorMessage.includes("hash mismatch")) {
-        errorMessage = "Hash verification failed. The provided secret number and salt don't match the original commitment.";
-      } else if (errorMessage.includes("only creator")) {
-        errorMessage = "Only the game creator can perform fair reveal.";
-      } else if (errorMessage.includes("round active")) {
-        errorMessage = "Cannot reveal yet - the game round is still active.";
-      } else if (errorMessage.includes("already settled")) {
-        errorMessage = "This game has already been settled.";
+      // Try to extract the actual revert reason from the error
+      let errorMessage = "Fair reveal failed";
+      let detailedMessage = (error as Error).message;
+
+      // Check for viem contract errors
+      if (error?.cause?.data) {
+        const data = error.cause.data;
+        if (data.startsWith("0x08c379a0")) {
+          // Error(string) selector
+          try {
+            const decoded = ethers.AbiCoder.defaultAbiCoder().decode(
+              ["string"],
+              "0x" + data.slice(10)
+            );
+            detailedMessage = decoded[0];
+          } catch (e) {
+            console.error("Failed to decode error:", e);
+          }
+        }
       }
 
+      // Check error message for specific revert reasons
+      if (detailedMessage.includes("hash mismatch") || detailedMessage.includes("EncryptedHighLow: hash mismatch")) {
+        errorMessage = "Hash verification failed";
+        detailedMessage = "The provided secret number and salt don't match the original commitment. Please verify:\n1. Secret number is correct (1-10)\n2. Salt matches the one used when creating the game\n3. The hash computed from these values matches the stored commitment.";
+      } else if (detailedMessage.includes("only creator") || detailedMessage.includes("EncryptedHighLow: only creator")) {
+        errorMessage = "Unauthorized";
+        detailedMessage = "Only the game creator can perform fair reveal.";
+      } else if (detailedMessage.includes("round active") || detailedMessage.includes("EncryptedHighLow: round active")) {
+        errorMessage = "Game still active";
+        detailedMessage = "Cannot reveal yet - the game round is still active. Please wait until the end time.";
+      } else if (detailedMessage.includes("already settled") || detailedMessage.includes("EncryptedHighLow: already settled")) {
+        errorMessage = "Game already settled";
+        detailedMessage = "This game has already been settled.";
+      } else if (detailedMessage.includes("Internal JSON-RPC error")) {
+        errorMessage = "Transaction failed";
+        detailedMessage = "The transaction was reverted. This could be due to:\n1. Hash mismatch (wrong secret number or salt)\n2. Game state (already settled or still active)\n3. Permission (not the creator)\n\nCheck the console for more details.";
+      }
+
+      // Compute hash for debugging
+      let computedHashForDebug = "";
+      try {
+        const ethers = await import('ethers');
+        computedHashForDebug = ethers.keccak256(ethers.solidityPacked(["uint8", "bytes32"], [secretNumber, formattedSalt]));
+      } catch (e) {
+        console.warn("Could not compute hash for debug:", e);
+      }
+
+      console.error("Error details:", {
+        error,
+        computedHash: computedHashForDebug,
+        secretNumber,
+        salt: formattedSalt,
+        gameId
+      });
+
       toast({
-        title: "Fair reveal failed",
-        description: errorMessage,
+        title: errorMessage,
+        description: detailedMessage,
         variant: "destructive",
       });
     }
@@ -559,23 +637,47 @@ const BettingTable = () => {
   };
 
   // Helper function to find stored game data
-  const findStoredGameData = (): { secretNumber: number; salt: string } | null => {
+  const findStoredGameData = (gameId?: bigint): { secretNumber: number; salt: string } | null => {
+    // If gameId is provided, try to find data for that specific game
+    if (gameId !== undefined) {
+      const key = `game_data_${gameId}`;
+      const data = localStorage.getItem(key);
+      if (data) {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.creator?.toLowerCase() === address?.toLowerCase()) {
+            return { secretNumber: parsed.secretNumber, salt: parsed.salt };
+          }
+        } catch (e) {
+          console.error("Failed to parse game data:", e);
+          localStorage.removeItem(key);
+        }
+      }
+    }
+
+    // Fallback: search all game data entries
     const keys = Object.keys(localStorage);
     for (const key of keys) {
-      if (key.startsWith('temp_game_data_')) {
+      if (key.startsWith('game_data_') || key.startsWith('temp_game_data_')) {
         try {
           const data = JSON.parse(localStorage.getItem(key)!);
           if (data.creator?.toLowerCase() === address?.toLowerCase()) {
-            // Clean up old entries (keep only recent ones)
-            const age = Date.now() - data.createdAt;
-            if (age < 24 * 60 * 60 * 1000) { // 24 hours
-              return { secretNumber: data.secretNumber, salt: data.salt };
+            // If gameId is provided, only return if it matches
+            if (gameId !== undefined && data.gameId !== undefined) {
+              if (BigInt(data.gameId) === gameId) {
+                return { secretNumber: data.secretNumber, salt: data.salt };
+              }
             } else {
-              localStorage.removeItem(key);
+              // Otherwise return the most recent one (within 24 hours)
+              const age = Date.now() - (data.createdAt || 0);
+              if (age < 24 * 60 * 60 * 1000) {
+                return { secretNumber: data.secretNumber, salt: data.salt };
+              } else {
+                localStorage.removeItem(key);
+              }
             }
           }
         } catch (e) {
-          // Invalid data, remove it
           localStorage.removeItem(key);
         }
       }
@@ -1032,80 +1134,27 @@ const BettingTable = () => {
                                 <div className="text-xs text-muted-foreground">
                                   Fair Reveal (commit-reveal pattern)
                                 </div>
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 text-xs flex-1"
-                                    disabled={summary.settled || secondsUntilEnd > 0}
-                                    onClick={() => {
-                                      // Auto-fill from localStorage
-                                      const gameData = findStoredGameData();
-                                      if (gameData) {
-                                        handleFairReveal(game.id, gameData.secretNumber, gameData.salt as `0x${string}`);
-                                      } else {
-                                        toast({
-                                          title: "Game data not found",
-                                          description: "Could not find stored game data. Please create a new game or enter manually.",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    }}
-                                  >
-                                    Auto Fill & Reveal
-                                  </Button>
-                                  <div className="flex gap-1">
-                                    <Input
-                                      type="number"
-                                      placeholder="Secret"
-                                      min="1"
-                                      max="10"
-                                      className="w-16 h-8 text-xs"
-                                      value={debugRevealForms[`${game.id}_secret`] ?? ""}
-                                      onChange={(e) => {
-                                        const value = e.target.value;
-                                        setDebugRevealForms(prev => ({
-                                          ...prev,
-                                          [`${game.id}_secret`]: value
-                                        }));
-                                      }}
-                                    />
-                                    <Input
-                                      type="text"
-                                      placeholder="Salt"
-                                      className="w-24 h-8 text-xs"
-                                      value={debugRevealForms[`${game.id}_salt`] ?? ""}
-                                      onChange={(e) => {
-                                        const value = e.target.value;
-                                        setDebugRevealForms(prev => ({
-                                          ...prev,
-                                          [`${game.id}_salt`]: value
-                                        }));
-                                      }}
-                                    />
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-8 text-xs px-2"
-                                      disabled={summary.settled || secondsUntilEnd > 0}
-                                      onClick={() => {
-                                        const secretNum = parseInt(debugRevealForms[`${game.id}_secret`] ?? "0");
-                                        const salt = debugRevealForms[`${game.id}_salt`] ?? "";
-                                        if (secretNum >= 1 && secretNum <= 10 && salt.startsWith('0x') && salt.length === 66) {
-                                          handleFairReveal(game.id, secretNum, salt as `0x${string}`);
-                                        } else {
-                                          toast({
-                                            title: "Invalid input",
-                                            description: "Secret must be 1-10, salt must be valid hex",
-                                            variant: "destructive",
-                                          });
-                                        }
-                                      }}
-                                    >
-                                      Manual
-                                    </Button>
-                                  </div>
-                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 text-xs w-full"
+                                  disabled={summary.settled || secondsUntilEnd > 0}
+                                  onClick={() => {
+                                    // Automatically find game data from localStorage
+                                    const gameData = findStoredGameData(game.id);
+                                    if (gameData) {
+                                      handleFairReveal(game.id, gameData.secretNumber, gameData.salt as `0x${string}`);
+                                    } else {
+                                      toast({
+                                        title: "Game data not found",
+                                        description: "Could not find stored game data for this game. The game may have been created in a different session.",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                >
+                                  Fair Reveal
+                                </Button>
                               </div>
                             )}
 
