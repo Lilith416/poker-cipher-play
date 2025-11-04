@@ -2,6 +2,8 @@
 
 Cipher High-Low is an end-to-end MVP demonstrating how to build a fully homomorphic encrypted wagering game with Zama's FHEVM. Game creators publish hi/lo matches by locking an encrypted secret number between 1-10, funding a reward pool, and setting a countdown timer. Challengers participate by staking ETH and choosing encrypted BIG (6-10) or SMALL (1-5) predictions. When the timer expires, the contract requests decryption from the FHE oracle, computes winners based on the revealed secret number, and automatically distributes payouts. The RainbowKit front-end ensures all user interactions remain on-chain and fully encrypted throughout the entire process.
 
+This project showcases privacy-preserving blockchain gaming where sensitive game data remains encrypted until settlement, providing trustless and verifiable outcomes.
+
 ## 🎥 Demo Video
 
 [![Cipher High-Low Demo](https://img.shields.io/badge/Video-Demo-red?style=flat&logo=youtube)](poker-cipher-highlow.mp4)
