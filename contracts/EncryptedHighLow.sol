@@ -610,4 +610,5 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
 }
 }
 }
+}
 
