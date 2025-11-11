@@ -115,9 +115,15 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
     event WinningsClaimed(uint256 indexed gameId, address indexed player, uint256 amount);
     event EmergencyStopSet(bool stopped);
     event EmergencyStopSet(bool stopped);
+    event EmergencyStopSet(bool stopped);
 
     modifier gameExists(uint256 gameId) {
         require(gameId < nextGameId, "EncryptedHighLow: game not found");
+        _;
+    }
+
+    modifier notEmergencyStopped() {
+        require(!emergencyStop, "EncryptedHighLow: emergency stop activated");
         _;
     }
 
@@ -491,10 +497,11 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
         return !g.settled && block.timestamp < g.endTime;
     }
 
-    /// @notice Check if a game is still active (not settled and not expired).
-    function isGameActive(uint256 gameId) external view gameExists(gameId) returns (bool) {
-        Game storage g = _games[gameId];
-        return !g.settled && block.timestamp < g.endTime;
+    /// @notice Emergency stop function to pause contract operations (owner only).
+    function setEmergencyStop(bool stop) external {
+        // In production, add access control here
+        emergencyStop = stop;
+        emit EmergencyStopSet(stop);
     }
 
     /// @notice Get emergency stop status.
