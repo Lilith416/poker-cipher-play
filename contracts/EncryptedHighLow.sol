@@ -491,6 +491,12 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
         return !g.settled && block.timestamp < g.endTime;
     }
 
+    /// @notice Check if a game is still active (not settled and not expired).
+    function isGameActive(uint256 gameId) external view gameExists(gameId) returns (bool) {
+        Game storage g = _games[gameId];
+        return !g.settled && block.timestamp < g.endTime;
+    }
+
     /// @notice Get emergency stop status.
     function getEmergencyStop() external view returns (bool) {
         return emergencyStop;
