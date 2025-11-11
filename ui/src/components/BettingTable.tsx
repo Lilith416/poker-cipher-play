@@ -447,10 +447,9 @@ const BettingTable = () => {
 
       refetchGames();
     } catch (error) {
-      const errorMessage = (error as Error).message || "Unknown error occurred";
       toast({
         title: "Join failed",
-        description: `Failed to join game: ${errorMessage}`,
+        description: (error as Error).message,
         variant: "destructive",
       });
     }
