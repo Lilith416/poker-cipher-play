@@ -185,6 +185,7 @@ const BettingTable = () => {
   const [debugRevealForms, setDebugRevealForms] = useState<Record<string, string>>({});
   const [showOnlyActive, setShowOnlyActive] = useState(false);
   const [showOnlyActive, setShowOnlyActive] = useState(false);
+  const [showOnlyActive, setShowOnlyActive] = useState(false);
   const [expandedGames, setExpandedGames] = useState<Set<string>>(new Set());
 
   const totalGamesQuery = useQuery({
