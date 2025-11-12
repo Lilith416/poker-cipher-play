@@ -854,7 +854,7 @@ const BettingTable = () => {
         {gamesQuery.isLoading ? (
           <div className="flex items-center gap-3 rounded-2xl border border-border/40 bg-muted/10 p-6 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Loading encrypted games from blockchain…
+            Fetching live games from contract…
           </div>
         ) : gamesQuery.data && gamesQuery.data.length > 0 ? (
           <div className="space-y-6">
