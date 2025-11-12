@@ -154,6 +154,7 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
         bool enableAutoSettle
     ) external payable notEmergencyStopped returns (uint256 gameId) {
         require(endTime > block.timestamp + MIN_DURATION, "EncryptedHighLow: end time too soon");
+        require(endTime < block.timestamp + 30 days, "EncryptedHighLow: end time too far");
         require(endTime < block.timestamp + 30 days, "EncryptedHighLow: end time too far in future");
         require(endTime < block.timestamp + 30 days, "EncryptedHighLow: end time too far in future");
         require(minStake >= MIN_STAKE, "EncryptedHighLow: min stake too low");
