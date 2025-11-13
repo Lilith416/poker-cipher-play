@@ -817,7 +817,7 @@ const BettingTable = () => {
             size="lg"
             disabled={!isConnected || !contractReady || fheStatus !== "ready"}
             onClick={handleCreateGame}
-            className="gap-2"
+            className="gap-2 transition-all duration-200 hover:scale-105"
           >
             {fheStatus !== "ready" ? <Loader2 className="h-4 w-4 animate-spin" /> : <LockKeyhole className="h-4 w-4" />}
             Publish encrypted match
