@@ -25,6 +25,7 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
     uint256 public constant MIN_DURATION = 60;
     uint256 public constant MAX_STAKE = 100 ether;
     uint256 public constant MAX_STAKE = 100 ether;
+    uint256 public constant MAX_STAKE = 100 ether;
 
     struct Participant {
         ebool choice;
@@ -197,7 +198,7 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
         Participant storage p = g.participants[msg.sender];
         require(!p.exists, "EncryptedHighLow: already joined");
         require(msg.value >= g.minStake, "EncryptedHighLow: insufficient stake");
-        require(msg.value <= 100 ether, "EncryptedHighLow: stake too high"); // Prevent excessive stakes
+        require(msg.value <= MAX_STAKE, "EncryptedHighLow: stake too high");
         require(msg.value <= MAX_STAKE, "EncryptedHighLow: stake too high");
         require(msg.value <= MAX_STAKE, "EncryptedHighLow: stake too high");
 
