@@ -709,7 +709,7 @@ const BettingTable = () => {
     });
   };
 
-  // Keyboard shortcut for refreshing games (Ctrl/Cmd + R)
+  // Keyboard shortcut for refreshing games
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "r" && (event.ctrlKey || event.metaKey)) {
