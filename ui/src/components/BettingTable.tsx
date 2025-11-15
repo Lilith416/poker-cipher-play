@@ -155,6 +155,12 @@ const shorten = (value: `0x${string}`) => `${value.slice(0, 6)}...${value.slice(
  * Main interface for encrypted poker games, providing game creation,
  * joining, and management with fully homomorphic encryption.
  */
+/**
+ * BettingTable Component
+ *
+ * Main interface for encrypted poker games, providing game creation,
+ * joining, and management with fully homomorphic encryption.
+ */
 const BettingTable = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
