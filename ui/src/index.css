@@ -1,0 +1,144 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Casino Dark Theme - Primary colors */
+    --background: 220 20% 8%;
+    --foreground: 45 100% 95%;
+
+    /* Poker Table Felt */
+    --card: 150 40% 25%;
+    --card-foreground: 45 100% 95%;
+
+    --popover: 220 25% 12%;
+    --popover-foreground: 45 100% 95%;
+
+    /* Gold Accents */
+    --primary: 45 90% 55%;
+    --primary-foreground: 220 20% 8%;
+
+    /* Subtle Table Edge */
+    --secondary: 150 30% 20%;
+    --secondary-foreground: 45 100% 95%;
+
+    /* Muted Felt Areas */
+    --muted: 150 35% 18%;
+    --muted-foreground: 45 50% 75%;
+
+    /* Chip Highlights */
+    --accent: 0 75% 55%;
+    --accent-foreground: 45 100% 95%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 45 100% 95%;
+
+    --border: 150 30% 30%;
+    --input: 150 35% 22%;
+    --ring: 45 90% 55%;
+
+    --radius: 0.75rem;
+
+    /* Custom Casino Tokens */
+    --felt-dark: 150 45% 20%;
+    --felt-light: 150 40% 28%;
+    --gold: 45 90% 55%;
+    --gold-dark: 45 85% 45%;
+    --brass: 40 70% 50%;
+    --chip-red: 0 75% 55%;
+    --chip-blue: 220 75% 55%;
+    --chip-black: 220 20% 15%;
+    --glow: 45 100% 65%;
+    
+    /* Gradients */
+    --gradient-felt: linear-gradient(135deg, hsl(150 45% 20%), hsl(150 35% 25%));
+    --gradient-gold: linear-gradient(135deg, hsl(45 90% 55%), hsl(45 85% 45%));
+    --gradient-chip: linear-gradient(135deg, hsl(0 75% 55%), hsl(0 65% 45%));
+    
+    /* Shadows & Effects */
+    --shadow-chip: 0 4px 12px hsl(0 0% 0% / 0.5);
+    --shadow-glow: 0 0 20px hsl(45 100% 65% / 0.3);
+    --shadow-table: inset 0 2px 8px hsl(0 0% 0% / 0.4);
+
+    --sidebar-background: 220 25% 10%;
+    --sidebar-foreground: 45 100% 95%;
+    --sidebar-primary: 45 90% 55%;
+    --sidebar-primary-foreground: 220 20% 8%;
+    --sidebar-accent: 150 35% 22%;
+    --sidebar-accent-foreground: 45 100% 95%;
+    --sidebar-border: 150 30% 30%;
+    --sidebar-ring: 45 90% 55%;
+  }
+
+  .dark {
+    --background: 220 20% 8%;
+    --foreground: 45 100% 95%;
+    --card: 150 40% 25%;
+    --card-foreground: 45 100% 95%;
+    --popover: 220 25% 12%;
+    --popover-foreground: 45 100% 95%;
+    --primary: 45 90% 55%;
+    --primary-foreground: 220 20% 8%;
+    --secondary: 150 30% 20%;
+    --secondary-foreground: 45 100% 95%;
+    --muted: 150 35% 18%;
+    --muted-foreground: 45 50% 75%;
+    --accent: 0 75% 55%;
+    --accent-foreground: 45 100% 95%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 45 100% 95%;
+    --border: 150 30% 30%;
+    --input: 150 35% 22%;
+    --ring: 45 90% 55%;
+    --sidebar-background: 220 25% 10%;
+    --sidebar-foreground: 45 100% 95%;
+    --sidebar-primary: 45 90% 55%;
+    --sidebar-primary-foreground: 220 20% 8%;
+    --sidebar-accent: 150 35% 22%;
+    --sidebar-accent-foreground: 45 100% 95%;
+    --sidebar-border: 150 30% 30%;
+    --sidebar-ring: 45 90% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "liga" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .chip-stack {
+    @apply relative transition-transform duration-300 hover:scale-110;
+    filter: drop-shadow(0 4px 8px hsl(0 0% 0% / 0.5));
+  }
+  
+  .chip-glow {
+    @apply animate-pulse;
+    box-shadow: 0 0 20px hsl(var(--glow) / 0.5);
+  }
+  
+  .felt-texture {
+    background: 
+      radial-gradient(circle at 20% 50%, hsl(var(--felt-light) / 0.3) 0%, transparent 50%),
+      radial-gradient(circle at 80% 50%, hsl(var(--felt-light) / 0.3) 0%, transparent 50%),
+      hsl(var(--felt-dark));
+  }
+  
+  .binary-pattern {
+    background-image: 
+      linear-gradient(90deg, hsl(var(--gold) / 0.05) 1px, transparent 1px),
+      linear-gradient(hsl(var(--gold) / 0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}

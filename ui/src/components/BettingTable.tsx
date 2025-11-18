@@ -397,9 +397,6 @@ const BettingTable = () => {
         amount: formatEther(game.summary.minStake),
       };
       const stakeAmount = parseEther(joinState.amount || "0");
-      if (stakeAmount < game.summary.minStake) {
-        throw new Error("Stake must meet game minimum.");
-      }
 
       const wantsBig = joinState.stance === "big";
 
@@ -841,19 +838,13 @@ const BettingTable = () => {
                 stance: "big",
                 amount: formatEther(summary.minStake),
               };
-              const now = Date.now();
-              const secondsUntilEnd = Number(summary.endTime) * 1000 - now;
               const canJoin =
                 !summary.settled &&
                 !summary.revealPending &&
-                secondsUntilEnd > 0 &&
                 !participant.exists &&
                 isConnected;
 
-              const deadlineLabel =
-                secondsUntilEnd > 0
-                  ? formatDistanceStrict(new Date(Number(summary.endTime) * 1000), new Date())
-                  : "Expired";
+              const deadlineLabel = "Active";
 
               const youAreCreator = address && summary.creator.toLowerCase() === address.toLowerCase();
 
