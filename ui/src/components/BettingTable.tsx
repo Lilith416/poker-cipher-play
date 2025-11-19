@@ -397,8 +397,33 @@ const BettingTable = () => {
         amount: formatEther(game.summary.minStake),
       };
       const stakeAmount = parseEther(joinState.amount || "0");
+      if (stakeAmount < game.summary.minStake) {
+        throw new Error("Stake must meet game minimum.");
+      }
 
       const wantsBig = joinState.stance === "big";
+
+      const encryptedGuess = await fhevmInstance
+        .createEncryptedInput(contractAddress, address as `0x${string}`)
+        .addBool(wantsBig)
+        .encrypt();
+
+      console.log("Join game encrypted guess:", encryptedGuess);
+
+      let guessHandle = encryptedGuess.handles[0];
+      if (guessHandle instanceof Uint8Array) {
+        guessHandle = '0x' + Array.from(guessHandle).map(b => b.toString(16).padStart(2, '0')).join('');
+      } else if (typeof guessHandle === 'string' && !guessHandle.startsWith('0x')) {
+        guessHandle = guessHandle;
+      }
+
+      let guessInputProof = encryptedGuess.inputProof;
+      if (guessInputProof instanceof Uint8Array) {
+        guessInputProof = '0x' + Array.from(guessInputProof).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+
+      console.log("Join game converted handle:", guessHandle);
+      console.log("Join game converted inputProof:", guessInputProof);
 
       const txHash = await walletClient!.writeContract({
         account: walletClient!.account.address,
@@ -406,7 +431,7 @@ const BettingTable = () => {
         address: contractAddress,
         abi: ENCRYPTED_HIGH_LOW_ABI,
         functionName: "joinGame",
-        args: [game.id, wantsBig, '0x'],
+        args: [game.id, guessHandle, guessInputProof],
         value: stakeAmount,
       });
 
