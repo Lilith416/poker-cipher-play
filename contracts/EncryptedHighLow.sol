@@ -493,16 +493,34 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
 
             p.choiceRevealed = true;
             p.guessedBig = guessedBig;
+            bool isWinner = (isBig && guessedBig) || (!isBig && !guessedBig);
+            p.won = isWinner;
+
+            if (isWinner) {
+                winnersCount += 1;
+            }
         }
 
-        g.winnersCount = 0;
+        g.winnersCount = winnersCount;
 
-        g.creatorShare = g.totalPot;
-        g.payoutPerWinner = 0;
-        g.creatorBonusRemainder = 0;
+        if (winnersCount == 0) {
+            g.creatorShare = g.totalPot;
+            g.payoutPerWinner = 0;
+            g.creatorBonusRemainder = 0;
+            return (0, g.totalPot, 0);
+        }
 
-        creatorPayout = g.totalPot;
-        return (0, creatorPayout, 0);
+        uint256 creatorShare = g.totalPot / 2;
+        uint256 winnersShare = g.totalPot - creatorShare;
+        perWinner = winnersShare / winnersCount;
+        uint256 remainder = g.totalPot - creatorShare - (perWinner * winnersCount);
+
+        g.creatorShare = creatorShare;
+        g.payoutPerWinner = perWinner;
+        g.creatorBonusRemainder = remainder;
+
+        creatorPayout = creatorShare + remainder;
+        return (winnersCount, creatorPayout, perWinner);
     }
 
     /// @notice Automatically distribute rewards to creator and winners
@@ -518,6 +536,18 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
             emit CreatorClaimed(gameId, g.creator, creatorPayout);
         }
 
+        // Pay winners their share
+        if (perWinner > 0 && g.winnersCount > 0) {
+            for (uint256 i = 0; i < participantCount; i++) {
+                address participantAddress = g.participantList[i];
+                Participant storage p = g.participants[participantAddress];
+                if (p.won && !p.claimed) {
+                    p.claimed = true;
+                    _safeTransfer(participantAddress, perWinner);
+                    emit WinningsClaimed(gameId, participantAddress, perWinner);
+                }
+            }
+        }
     }
 
     /// @notice Complete settlement with automatic reward distribution
@@ -540,6 +570,18 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
             emit CreatorClaimed(gameId, g.creator, creatorPayout);
         }
 
+        // Pay winners their share
+        if (perWinner > 0 && winnersCount > 0) {
+            for (uint256 i = 0; i < participantCount; i++) {
+                address participantAddress = g.participantList[i];
+                Participant storage p = g.participants[participantAddress];
+                if (p.won && !p.claimed) {
+                    p.claimed = true;
+                    _safeTransfer(participantAddress, perWinner);
+                    emit WinningsClaimed(gameId, participantAddress, perWinner);
+                }
+            }
+        }
 
         return (winnersCount, creatorPayout, perWinner);
     }
