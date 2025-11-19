@@ -66,6 +66,10 @@ describe("EncryptedHighLow", () => {
     
     await expect(contract.connect(bob).claimWinnings(0)).to.be.revertedWith("EncryptedHighLow: not eligible");
 
+    await expect(contract.connect(alice).claimWinnings(0)).to.emit(contract, "WinningsClaimed");
+    const participantAfter = await contract.getParticipant(0, alice.address);
+    expect(participantAfter.claimed).to.eq(true);
+
     await expect(contract.connect(creator).claimCreator(0)).to.emit(contract, "CreatorClaimed");
     const updatedGame = await contract.getGame(0);
     expect(updatedGame.creatorClaimed).to.eq(true);
