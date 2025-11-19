@@ -339,6 +339,26 @@ export class FhevmDecryptionSignature {
       return cached;
     }
 
-    return null;
+    const { publicKey, privateKey } = keyPair ?? instance.generateKeypair();
+
+    const sig = await FhevmDecryptionSignature.new(
+      instance,
+      contractAddresses,
+      publicKey,
+      privateKey,
+      signer
+    );
+
+    if (!sig) {
+      return null;
+    }
+
+    await sig.saveToGenericStringStorage(
+      storage,
+      instance,
+      Boolean(keyPair?.publicKey)
+    );
+
+    return sig;
   }
 }
