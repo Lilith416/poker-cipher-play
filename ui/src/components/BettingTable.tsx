@@ -863,13 +863,19 @@ const BettingTable = () => {
                 stance: "big",
                 amount: formatEther(summary.minStake),
               };
+              const now = Date.now();
+              const secondsUntilEnd = Number(summary.endTime) * 1000 - now;
               const canJoin =
                 !summary.settled &&
                 !summary.revealPending &&
+                secondsUntilEnd > 0 &&
                 !participant.exists &&
                 isConnected;
 
-              const deadlineLabel = "Active";
+              const deadlineLabel =
+                secondsUntilEnd > 0
+                  ? formatDistanceStrict(new Date(Number(summary.endTime) * 1000), new Date())
+                  : "Expired";
 
               const youAreCreator = address && summary.creator.toLowerCase() === address.toLowerCase();
 
@@ -894,10 +900,13 @@ const BettingTable = () => {
                     </div>
                     <div className="flex items-center gap-3">
                       {renderStatus(summary)}
-                      <Badge variant="secondary" className="flex items-center gap-1 text-xs">
-                        <Timer className="h-3.5 w-3.5" />
-                        {deadlineLabel}
-                      </Badge>
+                      {summary.endTime > now && (
+                        <Badge variant="secondary" className="flex items-center gap-1 text-xs">
+                          <Timer className="h-3.5 w-3.5" />
+                          Ends in{" "}
+                          {formatDistanceStrict(new Date(Number(summary.endTime) * 1000), new Date())}
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
