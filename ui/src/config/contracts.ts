@@ -6,7 +6,10 @@ export const CONTRACT_ADDRESSES: Record<number, `0x${string}`> = {
 };
 
 export function getContractAddress(chainId: number): `0x${string}` {
-  return CONTRACT_ADDRESSES[chainId] || CONTRACT_ADDRESSES[11155111];
+  if (CONTRACT_ADDRESSES[chainId]) {
+    return CONTRACT_ADDRESSES[chainId];
+  }
+  throw new Error(`Unsupported chain ID: ${chainId}`);
 }
 
 export const ENCRYPTED_HIGH_LOW_ABI = [
