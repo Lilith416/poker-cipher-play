@@ -510,10 +510,16 @@ contract EncryptedHighLow is SepoliaConfig, ReentrancyGuard {
             return (0, g.totalPot, 0);
         }
 
+        require(winnersCount > 0 && winnersCount <= participantCount, "EncryptedHighLow: invalid winners count");
+
         uint256 creatorShare = g.totalPot / 2;
         uint256 winnersShare = g.totalPot - creatorShare;
+        require(winnersShare > 0, "EncryptedHighLow: insufficient winners share");
+        
         perWinner = winnersShare / winnersCount;
         uint256 remainder = g.totalPot - creatorShare - (perWinner * winnersCount);
+        
+        require(creatorShare + (perWinner * winnersCount) + remainder == g.totalPot, "EncryptedHighLow: payout mismatch");
 
         g.creatorShare = creatorShare;
         g.payoutPerWinner = perWinner;
