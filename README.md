@@ -2,6 +2,14 @@
 
 A fully homomorphic encryption (FHE) based high-low prediction game built on Ethereum using Zama's FHEVM. Players can place encrypted bets on whether a secret number (1-10) will be "big" (6-10) or "small" (1-5), with all game logic executed on-chain while maintaining complete privacy.
 
+## 🌐 Live Demo
+
+**Vercel Deployment:** [https://cipher-high-low.vercel.app/](https://cipher-high-low.vercel.app/)
+
+## 📹 Demo Video
+
+**[Watch Demo Video](https://youtu.be/ppB8LbanjTw)** - See the game in action!
+
 ## Features
 
 - **Fully Encrypted Gameplay**: All player choices and secret numbers are encrypted using FHE, ensuring privacy until reveal
@@ -23,6 +31,189 @@ The core game logic is implemented as a Solidity smart contract that leverages Z
   - **Fair Reveal**: Commit-reveal pattern with cryptographic hashes
   - **Auto Settle**: Automatic settlement when game end time is reached
 - **Payout Distribution**: Winners receive 50% of the pot, creator receives 50% plus any rounding remainder
+
+### Core Contract Code Explanation
+
+The contract implements a privacy-preserving high-low game using Fully Homomorphic Encryption (FHE). Here are the key components:
+
+#### 1. **Encrypted Data Structures**
+
+```solidity
+struct Game {
+    address creator;
+    euint8 secretNumber;              // Encrypted secret number (1-10)
+    bytes32 secretNumberHash;         // Hash commitment for fair reveal
+    mapping(address => Participant) participants;
+    // ... other fields
+}
+
+struct Participant {
+    ebool choice;                     // Encrypted guess (true=big, false=small)
+    uint256 stake;
+    bool won;
+    bool claimed;
+}
+```
+
+**Key Points:**
+- `euint8 secretNumber`: The secret number is stored as an encrypted uint8, ensuring privacy until reveal
+- `ebool choice`: Player guesses are encrypted booleans, preventing front-running
+- `bytes32 secretNumberHash`: Cryptographic commitment for fair reveal verification
+
+#### 2. **Game Creation with FHE Encryption**
+
+```solidity
+function createGame(
+    externalEuint8 secretNumberHandle,
+    bytes calldata inputProof,
+    bytes32 secretNumberHash,
+    uint256 minStake,
+    uint256 endTime,
+    uint256 rewardPool,
+    bool enableAutoSettle
+) external payable returns (uint256 gameId)
+```
+
+**How it works:**
+- Creator encrypts secret number (1-10) client-side using FHEVM SDK
+- Submits encrypted handle with cryptographic proof
+- Stores hash commitment for later verification
+- Sets up game parameters (min stake, end time, reward pool)
+- Grants ACL permissions for decryption access
+
+**Security:**
+- `FHE.fromExternal()` validates the encrypted input with proof
+- `FHE.allow()` grants decryption permissions only to authorized parties
+- Hash commitment prevents creator from changing the number after players join
+
+#### 3. **Player Participation with Encrypted Guesses**
+
+```solidity
+function joinGame(
+    uint256 gameId,
+    externalEbool guessHandle,
+    bytes calldata inputProof
+) external payable
+```
+
+**How it works:**
+- Player encrypts their guess (big/small) client-side
+- Submits encrypted boolean with stake amount
+- Contract stores encrypted choice without revealing it
+- Total pot increases with each participant
+
+**Privacy Guarantee:**
+- Player choices remain encrypted on-chain
+- No one can see guesses until decryption
+- Prevents front-running and strategic manipulation
+
+#### 4. **FHE Decryption Request**
+
+```solidity
+function requestReveal(uint256 gameId) external {
+    // Collect all encrypted handles
+    bytes32[] memory handles = new bytes32[](participantCount + 1);
+    handles[0] = FHE.toBytes32(g.secretNumber);
+    
+    for (uint256 i = 0; i < participantCount; i++) {
+        handles[i + 1] = FHE.toBytes32(p.choice);
+    }
+    
+    // Request asynchronous decryption from FHEVM oracle
+    uint256 requestId = FHE.requestDecryption(handles, this.revealCallback.selector);
+}
+```
+
+**How it works:**
+- After game end time, anyone can trigger reveal
+- Collects all encrypted handles (secret number + player choices)
+- Requests decryption from FHEVM oracle
+- Oracle asynchronously decrypts and calls `revealCallback()`
+
+#### 5. **Settlement Logic**
+
+```solidity
+function revealCallback(
+    uint256 requestId,
+    bytes calldata cleartexts,
+    bytes calldata decryptionProof
+) external returns (bool) {
+    // Verify decryption proof
+    FHE.checkSignatures(requestId, cleartexts, decryptionProof);
+    
+    // Decode revealed values
+    (uint8 revealedNumber, bool[] memory guesses) = 
+        abi.decode(cleartexts, (uint8, bool[]));
+    
+    // Complete settlement
+    _completeSettlement(g, revealedNumber, guesses);
+}
+```
+
+**Settlement Algorithm:**
+1. **Determine Winners**: Compare revealed number with player guesses
+   - If number > 5 (big) and player guessed big → winner
+   - If number ≤ 5 (small) and player guessed small → winner
+
+2. **Calculate Payouts**:
+   ```solidity
+   uint256 creatorShare = totalPot / 2;        // 50% to creator
+   uint256 winnersShare = totalPot - creatorShare;  // 50% to winners
+   uint256 perWinner = winnersShare / winnersCount;  // Split among winners
+   uint256 remainder = totalPot - creatorShare - (perWinner * winnersCount);
+   // Remainder goes to creator
+   ```
+
+3. **Auto-Distribution** (if enabled):
+   - Automatically transfers rewards to creator and winners
+   - No manual claiming required
+
+#### 6. **Fair Reveal Mechanism**
+
+```solidity
+function fairReveal(
+    uint256 gameId,
+    uint8 originalSecretNumber,
+    bytes32 salt
+) external returns (bool) {
+    // Verify hash commitment
+    bytes32 computedHash = keccak256(abi.encodePacked(originalSecretNumber, salt));
+    require(computedHash == g.secretNumberHash, "Hash mismatch");
+    
+    // Complete settlement with verified number
+    _completeSettlement(g, originalSecretNumber, guesses);
+}
+```
+
+**Fairness Guarantee:**
+- Creator commits to secret number hash before players join
+- Cannot change number after seeing player bets
+- Hash verification ensures commitment integrity
+- Recommended for production use
+
+#### 7. **Security Features**
+
+- **Reentrancy Protection**: All state-changing functions use `ReentrancyGuard`
+- **Input Validation**: Comprehensive checks on all parameters
+- **Access Control**: Only creator can reveal, only participants can claim
+- **FHE Security**: Leverages Zama's battle-tested FHEVM implementation
+- **Safe Transfers**: Uses low-level call with error checking
+
+**Key Security Patterns:**
+```solidity
+modifier gameExists(uint256 gameId) {
+    require(gameId < nextGameId, "Game not found");
+    _;
+}
+
+function claimWinnings(uint256 gameId) external nonReentrant {
+    // CEI pattern: Checks, Effects, Interactions
+    require(g.settled, "Not settled");
+    require(p.won && !p.claimed, "Not eligible");
+    p.claimed = true;  // Effect before interaction
+    _safeTransfer(msg.sender, g.payoutPerWinner);
+}
+```
 
 ### Frontend (`ui/`)
 
@@ -199,6 +390,3 @@ This project is licensed under the MIT License.
 - OpenZeppelin for security patterns
 - RainbowKit and Wagmi teams for excellent wallet integration tools
 
-## Demo Video
-
-See `poker-cipher-highlow.mp4` for a complete walkthrough of the game functionality.
